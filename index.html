@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Coffeebreak SIM 3</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ff4fa3">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main id="app">
+  <header>
+    <img src="logo.png" alt="Coffeebreak logo" class="logo" width="44" height="44">
+    <div class="title">Coffeebreak SIM 3</div>
+  </header>
+
+  <div id="status" class="status s-connecting" role="status" aria-live="polite">
+    <span class="dot"></span><span id="statusText">Connecting</span>
+  </div>
+  <div id="routes" class="routes">Starting up</div>
+
+  <section id="simcard" class="sim" aria-label="Your SIM">
+    <div class="chip"></div>
+    <div class="simcb">CB</div>
+    <div class="simlabel">Your SIM name</div>
+    <div class="simname" id="simName">-</div>
+    <button id="renameBtn" class="tiny" type="button">Change name</button>
+  </section>
+
+  <section id="dial" class="dial">
+    <label for="dialInput">Who do you want to call</label>
+    <input id="dialInput" type="text" inputmode="text" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="Type a SIM name">
+    <div id="contacts" class="contacts" aria-label="Contacts"></div>
+  </section>
+
+  <section id="callInfo" class="callinfo" hidden>
+    <div id="callWho" class="callwho"></div>
+    <div id="callLine" class="callline"></div>
+    <div id="callQuality" class="callquality"></div>
+  </section>
+
+  <div class="buttons">
+    <button id="mainBtn" class="big call" type="button">Call</button>
+    <div id="secondRow" class="row2" hidden>
+      <button id="muteBtn" class="mid" type="button">Mute</button>
+      <button id="declineBtn" class="mid red" type="button">Hang up</button>
+    </div>
+  </div>
+  <div id="msg" class="msg" aria-live="polite"></div>
+
+  <nav class="links">
+    <button id="testBtn" class="link" type="button">Test my connection</button>
+    <button id="wifiBtn" class="link" type="button">Coffeebreak WiFi</button>
+    <button id="aboutBtn" class="link" type="button">About</button>
+  </nav>
+
+  <section id="panelTest" class="panel" hidden>
+    <h2>Test my connection</h2>
+    <p class="small">This checks your microphone, the two ways calls find each other, and the mobile data relay.</p>
+    <button id="runTest" class="mid" type="button">Start test</button>
+    <ul id="testList" class="tests"></ul>
+    <p id="testSummary" class="summary"></p>
+    <button class="tiny closeBtn" data-close="panelTest" type="button">Close</button>
+  </section>
+
+  <section id="panelWifi" class="panel" hidden>
+    <h2>Coffeebreak WiFi</h2>
+    <p class="small">Honest note: this app cannot make a new WiFi network. It uses the hotspot on your own phone. The hotspot shares your phone's mobile data with the other devices, and the calls still go over the internet.</p>
+    <h3>Your connection right now</h3>
+    <dl class="kv">
+      <dt>Connected by</dt><dd id="wfType">Checking</dd>
+      <dt>Speed estimate</dt><dd id="wfSpeed">Checking</dd>
+      <dt>Delay</dt><dd id="wfDelay">Checking</dd>
+      <dt>Good for calls</dt><dd id="wfVerdict">Checking</dd>
+    </dl>
+    <button id="wfAgain" class="mid" type="button">Check again</button>
+    <h3>Make a hotspot named Coffeebreak</h3>
+    <p class="small"><b>iPhone</b></p>
+    <ol class="steps">
+      <li>Open Settings, then General, then About, then Name. Change the name to Coffeebreak.</li>
+      <li>Go back to Settings and open Personal Hotspot.</li>
+      <li>Turn on Allow Others to Join. Choose a password you will remember.</li>
+    </ol>
+    <p class="small"><b>Android</b></p>
+    <ol class="steps">
+      <li>Open Settings, then Network, then Hotspot and tethering.</li>
+      <li>Open WiFi hotspot. Set the network name to Coffeebreak and choose a password.</li>
+      <li>Turn the hotspot on.</li>
+    </ol>
+    <p class="small"><b>On the other devices</b></p>
+    <ol class="steps">
+      <li>Open the WiFi list and choose Coffeebreak. Enter the password.</li>
+      <li>Open this app on each device and give each a different SIM name.</li>
+      <li>Type the other SIM name and tap Call.</li>
+    </ol>
+    <p class="small">Your phone with the hotspot needs a mobile data signal. Hotspot use counts against your data plan.</p>
+    <button class="tiny closeBtn" data-close="panelWifi" type="button">Close</button>
+  </section>
+
+  <section id="panelAbout" class="panel" hidden>
+    <h2>About</h2>
+    <p class="small">Coffeebreak SIM 3 is app-to-app calling. It is not a carrier SIM. It has no phone number from a mobile company and it cannot call normal phone numbers. Both people open this app and call each other by SIM name. Calls are voice only and need the internet, by WiFi or mobile data.</p>
+    <p class="small">To call a friend, share this link with their name filled in: add <b>?me=theirname</b> to the address. To dial straight away, add <b>?call=name</b>.</p>
+    <button class="tiny closeBtn" data-close="panelAbout" type="button">Close</button>
+  </section>
+
+  <section id="panelName" class="panel" hidden>
+    <h2>Name this SIM</h2>
+    <p class="small">Choose a short name with letters and numbers. Other people type this name to call you.</p>
+    <input id="nameInput" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="for example karen">
+    <button id="nameSave" class="mid" type="button">Save name</button>
+  </section>
+
+  <footer>© Karen O'Brien (Coffeebreak). Karen O'Brien keeps all rights to this app, its design, name and logo. You may resell a physical phone you bought, but you may not copy this app or make your own version of it.</footer>
+</main>
+<audio id="remoteAudio" autoplay playsinline></audio>
+<script src="ice-fallback.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

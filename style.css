@@ -1,0 +1,67 @@
+*{box-sizing:border-box}
+html,body{margin:0;background:#ffe3f1;color:#4a1235;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-text-size-adjust:100%}
+#app{max-width:480px;margin:0 auto;padding:14px 16px calc(24px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px}
+header{display:flex;align-items:center;gap:10px}
+.logo{width:44px;height:44px;object-fit:contain;border-radius:50%}
+.title{font-weight:800;font-size:22px;letter-spacing:.3px;color:#c2186b}
+.status{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:800;padding:12px 16px;border-radius:16px;background:#fff;box-shadow:0 2px 8px rgba(194,24,107,.15)}
+.dot{width:16px;height:16px;border-radius:50%;background:#f5a623;flex:none}
+.s-connecting .dot{background:#f5a623;animation:pulse 1s infinite}
+.s-ready .dot{background:#22b35e}
+.s-calling .dot,.s-ringing .dot{background:#ff4fa3;animation:pulse .8s infinite}
+.s-connected .dot{background:#22b35e}
+.s-retry .dot{background:#f5a623;animation:pulse .6s infinite}
+.s-problem .dot{background:#e0262f}
+@keyframes pulse{50%{opacity:.25}}
+.routes{font-size:13px;color:#8a4a6c;margin-top:-6px;padding:0 6px}
+.sim{position:relative;border-radius:22px;background:linear-gradient(135deg,#ff7cc0,#ff4fa3 55%,#e8338a);color:#fff;padding:18px 20px;min-height:170px;box-shadow:0 6px 18px rgba(194,24,107,.35);overflow:hidden}
+.sim::after{content:"";position:absolute;right:-40px;top:-40px;width:150px;height:150px;border-radius:50%;background:rgba(255,255,255,.12)}
+.chip{width:50px;height:38px;border-radius:7px;background:linear-gradient(135deg,#ffe9a8,#e7b84a);box-shadow:inset 0 0 0 2px rgba(0,0,0,.12)}
+.simcb{position:absolute;right:20px;top:14px;font-weight:900;font-size:34px;letter-spacing:1px;z-index:1}
+.simlabel{margin-top:20px;font-size:13px;opacity:.9}
+.simname{font-size:30px;font-weight:800;word-break:break-all}
+.tiny{background:rgba(255,255,255,.25);border:0;color:#fff;border-radius:10px;padding:6px 10px;font-size:13px;margin-top:6px;cursor:pointer;z-index:1;position:relative}
+.panel .tiny{background:#ffd0e8;color:#8a1450}
+.dial label{display:block;font-weight:700;margin-bottom:6px}
+input[type=text]{width:100%;font-size:22px;padding:14px;border-radius:14px;border:2px solid #ff9fcc;background:#fff;color:#4a1235}
+input[type=text]:focus{outline:3px solid #ff4fa3}
+.contacts{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.contact{display:inline-flex;align-items:center;background:#fff;border:2px solid #ff9fcc;border-radius:999px;overflow:hidden}
+.contact button{border:0;background:transparent;font-size:17px;padding:10px 14px;color:#8a1450;cursor:pointer;min-height:44px}
+.contact .x{padding:10px 12px 10px 4px;color:#b06b90}
+.callinfo{background:#fff;border-radius:16px;padding:14px 16px;text-align:center}
+.callwho{font-size:28px;font-weight:800;color:#c2186b;word-break:break-all}
+.callline{font-size:18px;margin-top:4px}
+.callquality{font-size:14px;color:#8a4a6c;margin-top:4px}
+.buttons{display:flex;flex-direction:column;gap:10px}
+button{font-family:inherit}
+.big{width:100%;min-height:78px;font-size:30px;font-weight:900;border:0;border-radius:24px;color:#fff;cursor:pointer;background:#1fa85a;box-shadow:0 5px 0 #14793f}
+.big.call{background:#ff2f92;box-shadow:0 5px 0 #b01264}
+.big.answer{background:#1fa85a;box-shadow:0 5px 0 #14793f;animation:ring 1s infinite}
+.big.hang{background:#e0262f;box-shadow:0 5px 0 #9c1219}
+.big:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.3)}
+@keyframes ring{50%{filter:brightness(1.25)}}
+.row2{display:flex;gap:10px}
+.mid{flex:1;font-size:18px;font-weight:700;min-height:54px;border-radius:16px;border:0;background:#ffb6da;color:#7a0f45;cursor:pointer;padding:0 16px}
+.mid.red{background:#e0262f;color:#fff}
+.mid.on{background:#4a1235;color:#fff}
+.msg{min-height:22px;text-align:center;font-size:16px;color:#8a1450}
+.links{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.link{background:transparent;border:2px solid #ff9fcc;color:#a3125c;border-radius:14px;padding:10px 14px;font-size:16px;font-weight:700;cursor:pointer;min-height:44px}
+.panel{background:#fff;border-radius:18px;padding:16px;box-shadow:0 2px 10px rgba(194,24,107,.18)}
+.panel h2{margin:0 0 8px;color:#c2186b;font-size:22px}
+.panel h3{margin:16px 0 6px;font-size:17px;color:#a3125c}
+.small{font-size:15px;line-height:1.45;margin:6px 0}
+.steps{margin:4px 0 8px;padding-left:22px;font-size:15px;line-height:1.5}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:16px;margin:8px 0 12px}
+.kv dt{color:#8a4a6c}.kv dd{margin:0;font-weight:700}
+.tests{list-style:none;padding:0;margin:12px 0}
+.tests li{padding:10px 12px;border-radius:12px;background:#fff0f7;margin-bottom:8px;font-size:16px;line-height:1.4}
+.tests li.ok{border-left:6px solid #22b35e}
+.tests li.bad{border-left:6px solid #e0262f}
+.tests li.wait{border-left:6px solid #f5a623}
+.tests b{display:block}
+.summary{font-size:18px;font-weight:800;color:#a3125c}
+footer{font-size:12px;line-height:1.45;color:#8a4a6c;text-align:center;margin-top:8px;padding-top:10px;border-top:1px solid #ffb6da}
+[hidden]{display:none !important}
+@media (min-width:700px){#app{padding-top:28px}.title{font-size:26px}}
