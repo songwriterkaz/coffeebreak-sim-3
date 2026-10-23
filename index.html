@@ -42,11 +42,26 @@
     <div id="callQuality" class="callquality"></div>
   </section>
 
+  <section id="stage" class="stage" hidden aria-label="Video">
+    <video id="remoteVideo" autoplay playsinline muted></video>
+    <div id="stagePh" class="stageph">Waiting for their camera</div>
+    <video id="localVideo" class="mirror" autoplay playsinline muted aria-label="Your own picture"></video>
+    <div id="camOffTag" class="camofftag" hidden>Your camera is off</div>
+  </section>
+
   <div class="buttons">
-    <button id="mainBtn" class="big call" type="button">Call</button>
+    <div id="callRow" class="callrow">
+      <button id="mainBtn" class="big call" type="button">Call</button>
+      <button id="videoBtn" class="big video" type="button">Video call</button>
+    </div>
     <div id="secondRow" class="row2" hidden>
       <button id="muteBtn" class="mid" type="button">Mute</button>
+      <button id="audioAnsBtn" class="mid" type="button" hidden>Voice only</button>
       <button id="declineBtn" class="mid red" type="button">Hang up</button>
+    </div>
+    <div id="videoRow" class="row2" hidden>
+      <button id="camBtn" class="mid" type="button">Turn camera off</button>
+      <button id="switchBtn" class="mid" type="button" hidden>Switch camera</button>
     </div>
   </div>
   <div id="msg" class="msg" aria-live="polite"></div>
@@ -59,7 +74,7 @@
 
   <section id="panelTest" class="panel" hidden>
     <h2>Test my connection</h2>
-    <p class="small">This checks your microphone, the two ways calls find each other, and the mobile data relay.</p>
+    <p class="small">This checks your microphone, your camera, the two ways calls find each other, and the mobile data relay.</p>
     <button id="runTest" class="mid" type="button">Start test</button>
     <ul id="testList" class="tests"></ul>
     <p id="testSummary" class="summary"></p>
@@ -102,7 +117,7 @@
 
   <section id="panelAbout" class="panel" hidden>
     <h2>About</h2>
-    <p class="small">Coffeebreak SIM 3 is app-to-app calling. It is not a carrier SIM. It has no phone number from a mobile company and it cannot call normal phone numbers. Both people open this app and call each other by SIM name. Calls are voice only and need the internet, by WiFi or mobile data.</p>
+    <p class="small">Coffeebreak SIM 3 is app-to-app calling. It is not a carrier SIM. It has no phone number from a mobile company and it cannot call normal phone numbers. Both people open this app and call each other by SIM name. Calls are voice, or voice and video when you tap Video call. If the camera is blocked or missing, the call carries on as voice only. Calls need the internet, by WiFi or mobile data.</p>
     <p class="small">To call a friend, share this link with their name filled in: add <b>?me=theirname</b> to the address. To dial straight away, add <b>?call=name</b>.</p>
     <button class="tiny closeBtn" data-close="panelAbout" type="button">Close</button>
   </section>

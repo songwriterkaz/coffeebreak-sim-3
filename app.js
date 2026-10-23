@@ -1,4 +1,4 @@
-/* Coffeebreak SIM 3. App-to-app voice calling. Written fresh for Karen O'Brien (Coffeebreak). */
+/* Coffeebreak SIM 3. App-to-app voice and video calling. Written fresh for Karen O'Brien (Coffeebreak). */
 (function () {
   'use strict';
   var $ = function (id) { return document.getElementById(id); };
@@ -52,6 +52,7 @@
     if (seen[env.id]) return;
     seen[env.id] = 1;
     if (clean(env.to) !== me) return;
+    if (env.t === 'part') { onPart(env, via); return; }
     if (env.t === 'selftest') { if (selfTests[env.id0]) selfTests[env.id0](via); return; }
     try { handleSignal(env, via); } catch (e) { log('signal error ' + e.message); }
   }
@@ -155,8 +156,25 @@
     env.id = env.id || rand(14);
     env.from = me; env.to = to; env.ts = Date.now();
     seen[env.id] = 1;
-    wsSend(to, env);
-    ntfySend(to, env);
+    var txt = JSON.stringify(env);
+    if (txt.length <= 2600) { wsSend(to, env); ntfySend(to, env); return; }
+    /* Video offers are long. Both routes cap message size, so long messages travel in small parts. */
+    var n = Math.ceil(txt.length / 2200), mid = rand(10);
+    for (var i = 0; i < n; i++) {
+      var part = { t: 'part', id: rand(14), mid: mid, i: i, n: n, d: txt.slice(i * 2200, (i + 1) * 2200), from: me, to: to, ts: Date.now() };
+      seen[part.id] = 1;
+      wsSend(to, part); ntfySend(to, part);
+    }
+  }
+  var partsIn = {};
+  function onPart(env, via) {
+    var p = partsIn[env.mid] = partsIn[env.mid] || { n: env.n, d: [], got: 0, done: false };
+    if (p.done || p.d[env.i] != null) return;
+    p.d[env.i] = env.d; p.got++;
+    if (p.got < p.n) return;
+    p.done = true;
+    var inner; try { inner = JSON.parse(p.d.join('')); } catch (e) { return; }
+    onSignal(inner, via);
   }
   function sigStart() {
     sigGen++;
@@ -190,6 +208,72 @@
     return 'The microphone could not start.';
   }
 
+  /* ---------- camera ---------- */
+  var cam = null, camCount = 0;
+  var isPhoneLike = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || '') && (navigator.maxTouchPoints || 0) > 0;
+  function camConstraints(facing) { return { audio: false, video: { facingMode: { ideal: facing || 'user' }, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } } }; }
+  function camErrorText(e) {
+    var n = e && e.name;
+    if (n === 'NotAllowedError' || n === 'SecurityError') return 'The camera is blocked. Allow the camera for this page in your browser settings.';
+    if (n === 'NotFoundError' || n === 'OverconstrainedError' || n === 'TypeError') return 'No camera was found on this device.';
+    if (n === 'NotReadableError') return 'The camera is busy in another app.';
+    return 'The camera could not start.';
+  }
+  async function getCam(facing) {
+    if (cam && cam.getVideoTracks().some(function (t) { return t.readyState === 'live'; })) return { stream: cam };
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw { name: 'NotFoundError' };
+      cam = await navigator.mediaDevices.getUserMedia(camConstraints(facing));
+      try { var devs = await navigator.mediaDevices.enumerateDevices(); camCount = devs.filter(function (d) { return d.kind === 'videoinput'; }).length; } catch (e) { camCount = 1; }
+      return { stream: cam };
+    } catch (e) { cam = null; return { error: e }; }
+  }
+  function stopCam() {
+    if (cam) { cam.getTracks().forEach(function (t) { t.stop(); }); cam = null; }
+    var lv = $('localVideo'), rv = $('remoteVideo'); lv.srcObject = null; rv.srcObject = null;
+  }
+  function showLocal(c) {
+    var lv = $('localVideo');
+    if (cam && lv.srcObject !== cam) { lv.srcObject = cam; var p = lv.play(); if (p && p.catch) p.catch(function () {}); }
+    lv.classList.toggle('mirror', c.facing !== 'environment');
+  }
+  /* Gets the camera for a video call. If it fails, the call carries on as voice only. */
+  async function prepareVideo(c) {
+    if (!c.video) return;
+    var r = await getCam(c.facing);
+    if (!r.stream) { c.video = false; c.note = camErrorText(r.error) + ' This call is voice only.'; }
+  }
+  function capVideo(c) {
+    try {
+      c.pc.getSenders().forEach(function (sn) {
+        if (!sn.track || sn.track.kind !== 'video') return;
+        var p = sn.getParameters(); if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+        p.encodings[0].maxBitrate = c.relay ? 450000 : 900000;
+        sn.setParameters(p).catch(function () {});
+      });
+    } catch (e) {}
+  }
+  async function switchCamera() {
+    var c = call; if (!c || !c.video || !cam || c.switching) return;
+    c.switching = true;
+    var prev = c.facing || 'user', next = prev === 'user' ? 'environment' : 'user';
+    var old = cam.getVideoTracks();
+    old.forEach(function (t) { t.stop(); });
+    var s = null;
+    try { s = await navigator.mediaDevices.getUserMedia(camConstraints(next)); c.facing = next; }
+    catch (e) { try { s = await navigator.mediaDevices.getUserMedia(camConstraints(prev)); c.note = 'The other camera could not start.'; } catch (e2) { s = null; } }
+    if (s) {
+      var nt = s.getVideoTracks()[0]; nt.enabled = !c.camOff;
+      var sender = c.pc && c.pc.getSenders().find(function (x) { return x.track && x.track.kind === 'video' || (x.track === null && x === c.vsender); });
+      if (!sender && c.vsender) sender = c.vsender;
+      if (sender) { try { await sender.replaceTrack(nt); } catch (e) { log('replace error ' + e.message); } }
+      cam = s;
+    } else { cam = null; c.video = false; c.note = 'The camera stopped. This call is voice only.'; }
+    c.switching = false;
+    $('localVideo').srcObject = null; if (cam) showLocal(c);
+    render();
+  }
+
   /* ---------- calls ---------- */
   var call = null;
   var ended = {};
@@ -200,7 +284,7 @@
   function log(s) { try { (window.__cblog = window.__cblog || []).push(Date.now() + ' ' + s); } catch (e) {} }
 
   function newCall(peer, role, cid, relay) {
-    return { cid: cid, peer: peer, role: role, relay: !!relay, state: role === 'caller' ? 'calling' : 'ringing', pc: null, outAll: [], outNew: [], inSeen: {}, inPending: [], rs: 0, accepted: role === 'caller', tries: 0, started: Date.now(), connectedAt: 0, muted: false, stats: {}, offer: null, answer: null, answeredRs: -1, timers: {} };
+    return { cid: cid, peer: peer, role: role, relay: !!relay, state: role === 'caller' ? 'calling' : 'ringing', pc: null, outAll: [], outNew: [], inSeen: {}, inPending: [], rs: 0, accepted: role === 'caller', tries: 0, started: Date.now(), connectedAt: 0, muted: false, video: false, camOff: false, note: '', facing: 'user', remoteVideo: false, stats: {}, offer: null, answer: null, answeredRs: -1, timers: {} };
   }
   function setT(c, name, fn, ms) { clearTimeout(c.timers[name]); c.timers[name] = setTimeout(function () { if (call === c) fn(); }, ms); }
   function clearTimers(c) { Object.keys(c.timers).forEach(function (k) { clearTimeout(c.timers[k]); clearInterval(c.timers[k]); }); c.timers = {}; }
@@ -219,6 +303,11 @@
       setT(c, 'iceflush', function () { flushIce(c); }, 250);
     };
     pc.ontrack = function (e) {
+      if (e.track.kind === 'video') {
+        var rv = $('remoteVideo'); rv.srcObject = new MediaStream([e.track]);
+        var pp = rv.play(); if (pp && pp.catch) pp.catch(function () {});
+        c.remoteVideo = true; render(); return;
+      }
       var a = $('remoteAudio');
       a.srcObject = e.streams && e.streams[0] ? e.streams[0] : new MediaStream([e.track]);
       var p = a.play(); if (p && p.catch) p.catch(function () { uiMsg = 'Tap anywhere on the screen to hear the call.'; render(); });
@@ -228,6 +317,10 @@
     pc.onconnectionstatechange = onState;
     var stream = await getMic();
     stream.getAudioTracks().forEach(function (t) { t.enabled = !c.muted; pc.addTrack(t, stream); });
+    if (c.video && cam) {
+      cam.getVideoTracks().forEach(function (t) { t.enabled = !c.camOff; var sn = pc.addTrack(t, cam); c.vsender = sn; });
+      showLocal(c);
+    }
     return pc;
   }
   function flushIce(c) {
@@ -246,7 +339,7 @@
   function flushPending(c) { var l = c.inPending; c.inPending = []; l.forEach(function (cd) { c.pc.addIceCandidate(cd).catch(function () {}); }); }
 
   /* caller side */
-  async function startCall(rawPeer) {
+  async function startCall(rawPeer, withVideo) {
     var peer = clean(rawPeer);
     if (!peer) { uiMsg = 'Type the SIM name you want to call.'; render(); return; }
     if (peer === me) { uiMsg = 'That is your own SIM name. Type a different name.'; render(); return; }
@@ -255,10 +348,14 @@
     uiMsg = '';
     var c = newCall(peer, 'caller', rand(10), params.get('relay') === '1');
     c.sabotage = params.get('sabotage') === '1';
+    c.video = !!withVideo;
     call = c; c.tries = 0;
     render();
     try { await getMic(); } catch (e) { call = null; uiMsg = micErrorText(e); render(); return; }
     if (call !== c) return;
+    await prepareVideo(c);
+    if (call !== c) return;
+    render();
     try { await beginOffer(c, false); } catch (e) { log('offer error ' + e.message); endCall('Something went wrong starting the call. Please try again.', true); }
   }
   async function beginOffer(c, restart) {
@@ -277,7 +374,7 @@
   }
   function sendOffer(c) {
     c.offerSent++;
-    send(c.peer, { t: 'offer', cid: c.cid, rs: c.rs, relay: c.relay, sdp: c.offer.sdp, c: c.outAll.slice(0, 20) });
+    send(c.peer, { t: 'offer', cid: c.cid, rs: c.rs, relay: c.relay, video: c.video, sdp: c.offer.sdp, c: c.outAll.slice(0, 20) });
   }
   async function onAnswer(c, env) {
     if (c.role !== 'caller' || env.cid !== c.cid) return;
@@ -319,7 +416,7 @@
     try { c.pc && c.pc.close(); } catch (e) {}
     ended[c.cid] = 1;
     var n = newCall(peer, 'caller', rand(10), true);
-    n.tries = Math.max(tries, 2); n.muted = muted; n.state = 'retry';
+    n.tries = Math.max(tries, 2); n.muted = muted; n.state = 'retry'; n.video = c.video; n.camOff = c.camOff; n.note = c.note; n.facing = c.facing;
     call = n; render();
     try { await beginOffer(n, false); armConnectWatch(n); } catch (e) { endCall('The call could not connect. Please try again.', true); }
   }
@@ -341,6 +438,7 @@
     var wasAccepted = false;
     if (call && call.peer === peer) { wasAccepted = call.accepted; var old = call; clearTimers(old); try { old.pc && old.pc.close(); } catch (e) {} ended[old.cid] = 1; }
     var n = newCall(peer, 'callee', env.cid, env.relay);
+    n.video = !!env.video;
     n.offerEnv = env; n.rs = env.rs || 0;
     call = n;
     addRemoteCands(n, env.c);
@@ -355,7 +453,7 @@
     ended[c.cid] = 1; clearTimers(c); call = null; stopRing();
     uiMsg = 'Missed call from ' + c.peer + '.'; render();
   }
-  async function acceptCall() {
+  async function acceptCall(audioOnly) {
     var c = call;
     if (!c || c.role !== 'callee') return;
     unlockAudio();
@@ -363,9 +461,13 @@
     c.accepted = true; c.state = 'connecting'; uiMsg = ''; render();
     try { await getMic(); } catch (e) { send(c.peer, { t: 'bye', cid: c.cid }); endCall(micErrorText(e), false); return; }
     if (call !== c) return;
+    if (audioOnly) { c.video = false; c.note = 'You answered with voice only.'; }
+    else await prepareVideo(c);
+    if (call !== c) return;
     try {
       var pc = await makePc(c);
       await pc.setRemoteDescription({ type: 'offer', sdp: c.offerEnv.sdp });
+      if (!c.video) pc.getTransceivers().forEach(function (tr) { if (tr.receiver && tr.receiver.track && tr.receiver.track.kind === 'video') { try { tr.direction = 'inactive'; } catch (e) {} } });
       flushPending(c);
       var ans = await pc.createAnswer();
       await pc.setLocalDescription(ans);
@@ -410,6 +512,7 @@
       clearTimeout(c.timers.disc); clearTimeout(c.timers.connwatch); clearTimeout(c.timers.calleewatch);
       if (c.state !== 'connected') {
         c.state = 'connected'; c.connectedAt = c.connectedAt || Date.now(); uiMsg = '';
+        if (c.video) capVideo(c);
         saveContact(c.peer); startTick(); lockWake(); render();
       }
     } else if (ic === 'disconnected') {
@@ -429,7 +532,8 @@
     clearTimers(c);
     try { c.pc && c.pc.close(); } catch (e) {}
     call = null;
-    stopRing(); stopTick(); unlockWake(); stopMic();
+    stopRing(); stopTick(); unlockWake(); stopMic(); stopCam();
+    $('stage').hidden = true;
     $('remoteAudio').srcObject = null;
     uiMsg = text || 'Call ended.';
     document.title = 'Coffeebreak SIM 3';
@@ -442,12 +546,13 @@
     if (!c || !c.pc || (c.state !== 'connected' && c.state !== 'retry' && c.state !== 'connecting')) return;
     try {
       var rep = await c.pc.getStats();
-      var pair = null, locals = {}, remotes = {}, inb = null, tr = null;
+      var pair = null, locals = {}, remotes = {}, inb = null, vin = null, tr = null;
       rep.forEach(function (s) {
         if (s.type === 'transport' && s.selectedCandidatePairId) tr = s;
         if (s.type === 'local-candidate') locals[s.id] = s;
         if (s.type === 'remote-candidate') remotes[s.id] = s;
         if (s.type === 'inbound-rtp' && (s.kind === 'audio' || s.mediaType === 'audio')) inb = s;
+        if (s.type === 'inbound-rtp' && (s.kind === 'video' || s.mediaType === 'video')) vin = s;
       });
       rep.forEach(function (s) { if (s.type === 'candidate-pair' && ((tr && s.id === tr.selectedCandidatePairId) || (!tr && s.state === 'succeeded' && s.nominated))) pair = s; });
       var st = c.stats;
@@ -458,6 +563,7 @@
         st.net = l.networkType || st.net;
       }
       if (inb) { st.recvPrev = st.recv; st.recv = inb.packetsReceived; st.lost = inb.packetsLost; st.jitter = inb.jitter; st.flowing = st.recvPrev != null && st.recv > st.recvPrev; }
+      if (vin) { st.vPrev = st.vframes; st.vframes = vin.framesDecoded || 0; st.vflow = st.vPrev != null && st.vframes > st.vPrev; }
       render();
     } catch (e) {}
   }
@@ -470,6 +576,7 @@
       parts.push('Quality ' + q + ', delay ' + s.rtt + ' ms');
     }
     if (s.recv != null) parts.push(s.flowing === false ? 'No voice arriving right now' : 'Voice is arriving');
+    if (c.video && s.vframes != null) parts.push(s.vflow === false ? 'No picture arriving right now' : 'Picture is arriving');
     if (s.relay !== undefined) parts.push(s.relay ? 'Through the mobile data relay' : 'Direct path');
     if (s.net === 'wifi') parts.push('on WiFi'); else if (s.net === 'cellular') parts.push('on mobile data');
     return parts.join('. ');
@@ -528,10 +635,13 @@
   function render() {
     var st = $('status'), tx = $('statusText'), main = $('mainBtn'), row = $('secondRow');
     var mute = $('muteBtn'), decl = $('declineBtn'), info = $('callInfo');
+    var vb = $('videoBtn'), ab = $('audioAnsBtn'), vrow = $('videoRow'), camb = $('camBtn'), swb = $('switchBtn'), stage = $('stage');
     var cls = 's-connecting', text = 'Connecting';
     var up = routes.a.up || routes.b.up;
-    main.className = 'big call'; main.textContent = 'Call';
-    row.hidden = true; mute.hidden = true; decl.hidden = true; info.hidden = true;
+    main.className = 'big call'; main.textContent = 'Call'; $('callRow').classList.toggle('single', !!call);
+    row.hidden = true; mute.hidden = true; decl.hidden = true; info.hidden = true; ab.hidden = true; vrow.hidden = true; vb.hidden = !!call; stage.hidden = true;
+    $('simcard').hidden = !!(call && call.video && call.state !== 'ringing');
+    $('app').classList.remove('wide'); $('app').classList.toggle('invideo', !!(call && call.video && call.state !== 'ringing'));
     $('dial').hidden = !!call;
     if (!me) { text = 'Connecting'; }
     else if (!call) {
@@ -541,10 +651,24 @@
       $('callWho').textContent = call.peer;
       var line = '';
       if (call.state === 'calling') { cls = 's-calling'; text = 'Calling ' + call.peer; line = 'Waiting for them to answer'; main.className = 'big hang'; main.textContent = 'Hang up'; }
-      else if (call.state === 'ringing') { cls = 's-ringing'; text = 'Incoming call'; line = call.peer + ' is calling you'; main.className = 'big answer'; main.textContent = 'Answer'; row.hidden = false; decl.hidden = false; decl.textContent = 'Decline'; }
+      else if (call.state === 'ringing') { cls = 's-ringing'; text = call.video ? 'Incoming video call' : 'Incoming call'; line = call.peer + (call.video ? ' is calling you with video' : ' is calling you'); main.className = 'big answer'; main.textContent = call.video ? 'Answer with video' : 'Answer'; row.hidden = false; decl.hidden = false; decl.textContent = 'Decline'; ab.hidden = !call.video; }
       else if (call.state === 'connecting') { cls = 's-connecting'; text = 'Connecting'; line = 'Setting up the call'; main.className = 'big hang'; main.textContent = 'Hang up'; }
       else if (call.state === 'retry') { cls = 's-retry'; text = 'Trying again'; line = 'The line was weak. Trying another way'; main.className = 'big hang'; main.textContent = 'Hang up'; }
-      else if (call.state === 'connected') { cls = 's-connected'; text = 'Connected ' + fmt(Date.now() - call.connectedAt); line = 'You are on a call'; main.className = 'big hang'; main.textContent = 'Hang up'; row.hidden = false; mute.hidden = false; mute.textContent = call.muted ? 'Unmute' : 'Mute'; mute.className = 'mid' + (call.muted ? ' on' : ''); }
+      else if (call.state === 'connected') { cls = 's-connected'; text = 'Connected ' + fmt(Date.now() - call.connectedAt); line = (call.video ? 'You are on a video call' : 'You are on a call') + (call.note ? '. ' + call.note.replace(/\.$/, '') : ''); main.className = 'big hang'; main.textContent = 'Hang up'; row.hidden = false; mute.hidden = false; mute.textContent = call.muted ? 'Unmute' : 'Mute'; mute.className = 'mid' + (call.muted ? ' on' : ''); }
+      if (call.video && call.state !== 'ringing') {
+        stage.hidden = false;
+        if (window.innerWidth >= 700) $('app').classList.add('wide');
+        $('stagePh').hidden = !!call.remoteVideo;
+        $('stagePh').textContent = call.state === 'connected' ? 'They are not sharing a camera' : 'Waiting for their camera';
+        $('localVideo').hidden = !cam;
+        $('camOffTag').hidden = !call.camOff;
+        if (call.state === 'connecting' || call.state === 'retry' || call.state === 'connected') {
+          vrow.hidden = false;
+          camb.textContent = call.camOff ? 'Turn camera on' : 'Turn camera off';
+          camb.className = 'mid' + (call.camOff ? ' on' : '');
+          swb.hidden = !(cam && (isPhoneLike || camCount > 1));
+        }
+      } else if (call.note && call.state !== 'ringing' && call.state !== 'connected') line = line + (line ? '. ' : '') + call.note;
       $('callLine').textContent = line;
       $('callQuality').textContent = qualityText(call);
     }
@@ -577,6 +701,14 @@
   $('nameInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('nameSave').click(); });
 
   /* main buttons */
+  $('videoBtn').addEventListener('click', function () { if (!call) startCall($('dialInput').value, true); });
+  $('audioAnsBtn').addEventListener('click', function () { if (call && call.state === 'ringing') acceptCall(true); });
+  $('camBtn').addEventListener('click', function () {
+    if (!call || !call.video || !cam) return; call.camOff = !call.camOff;
+    cam.getVideoTracks().forEach(function (t) { t.enabled = !call.camOff; });
+    render();
+  });
+  $('switchBtn').addEventListener('click', switchCamera);
   $('mainBtn').addEventListener('click', function () {
     if (!call) { startCall($('dialInput').value); return; }
     if (call.state === 'ringing') { acceptCall(); return; }
@@ -675,6 +807,11 @@
     var l1 = addTest('Microphone');
     try { var s = await getMic(); var live = s.getAudioTracks().some(function (t) { return t.readyState === 'live'; }); stopMic(); res.mic = live; setTest(l1, live, live ? 'The microphone works.' : 'The microphone did not start.'); }
     catch (e) { res.mic = false; setTest(l1, false, micErrorText(e)); }
+    var lc = addTest('Camera');
+    var cr = await getCam('user');
+    if (cr.stream) { res.cam = cr.stream.getVideoTracks().some(function (t) { return t.readyState === 'live'; }); setTest(lc, res.cam, res.cam ? 'The camera works. Video calls are ready.' : 'The camera did not start. Calls will be voice only.'); }
+    else { res.cam = false; setTest(lc, false, camErrorText(cr.error) + ' Video calls will fall back to voice only.'); }
+    stopCam();
     var l2 = addTest('Call line 1');
     var l3 = addTest('Call line 2');
     var pa = selfPing('a').then(function (ok) { res.a = ok; setTest(l2, ok, ok ? 'Line 1 works. A test message went out and came back.' : (routes.a.up ? 'Line 1 is connected but the test message did not come back.' : 'Line 1 is not connected. ' + (routes.a.note ? 'This SIM name looks open on another device. ' : '') + 'Line 2 can still carry calls.')); });
@@ -695,6 +832,7 @@
     else if (res.a && res.b && res.turn) sum = 'Everything is working. Calls should connect on WiFi and on mobile data.';
     else if (res.turn) sum = 'Calls should connect. One call line is down, so the other one carries it.';
     else sum = 'Calls should connect on WiFi. Calls over mobile data may not.';
+    if (res.mic) sum += res.cam ? ' Video calls are ready.' : ' The camera is not available, so video calls will be voice only.';
     $('testSummary').textContent = sum;
     window.__cbTest = res;
     testing = false; $('runTest').disabled = false;
@@ -708,7 +846,7 @@
   render();
   if (!me) { openPanel('panelName'); }
   else { sigStart(); }
-  if (dial && me && params.get('go') === '1') { setTimeout(function () { startCall(dial); }, 800); }
+  if (dial && me && params.get('go') === '1') { setTimeout(function () { startCall(dial, params.get('video') === '1'); }, 800); }
   else if (dial && me) { uiMsg = 'Tap Call to ring ' + dial + '.'; render(); }
 
   window.__cb = { get call() { return call; }, get routes() { return routes; }, get me() { return me; }, runTest: runTest, readStats: readStats };

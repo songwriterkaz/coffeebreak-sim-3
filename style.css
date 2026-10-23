@@ -38,6 +38,7 @@ button{font-family:inherit}
 .big{width:100%;min-height:78px;font-size:30px;font-weight:900;border:0;border-radius:24px;color:#fff;cursor:pointer;background:#1fa85a;box-shadow:0 5px 0 #14793f}
 .big.call{background:#ff2f92;box-shadow:0 5px 0 #b01264}
 .big.answer{background:#1fa85a;box-shadow:0 5px 0 #14793f;animation:ring 1s infinite}
+.callrow{display:flex;gap:10px}.callrow .big{flex:1;min-width:0}.callrow.single #videoBtn{display:none}.big.video{background:#a3125c;box-shadow:0 5px 0 #6b0b3c;font-size:24px}
 .big.hang{background:#e0262f;box-shadow:0 5px 0 #9c1219}
 .big:active{transform:translateY(3px);box-shadow:0 2px 0 rgba(0,0,0,.3)}
 @keyframes ring{50%{filter:brightness(1.25)}}
@@ -65,3 +66,14 @@ button{font-family:inherit}
 footer{font-size:12px;line-height:1.45;color:#8a4a6c;text-align:center;margin-top:8px;padding-top:10px;border-top:1px solid #ffb6da}
 [hidden]{display:none !important}
 @media (min-width:700px){#app{padding-top:28px}.title{font-size:26px}}
+
+.stage{position:relative;background:#3a0f27;border-radius:18px;overflow:hidden;aspect-ratio:3/4;max-height:41vh;width:100%;box-shadow:0 4px 14px rgba(194,24,107,.3)}
+.stage video{display:block}
+#remoteVideo{width:100%;height:100%;object-fit:cover;background:#3a0f27}
+.stageph{position:absolute;left:0;right:0;top:42%;text-align:center;color:#ffd0e8;font-size:18px;font-weight:700;padding:0 20px;pointer-events:none}
+#localVideo{position:absolute;right:10px;bottom:10px;width:30%;max-width:150px;aspect-ratio:3/4;object-fit:cover;border-radius:12px;border:3px solid #fff;background:#5a1a3b;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+#localVideo.mirror{transform:scaleX(-1)}
+.camofftag{position:absolute;left:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;font-size:14px;padding:6px 10px;border-radius:10px}
+#app.wide{max-width:720px}
+#app.wide .stage{aspect-ratio:4/3;max-height:62vh}
+.invideo .routes{display:none}.invideo .callinfo{padding:8px 12px}.invideo .callwho{font-size:22px}.invideo .callline{font-size:16px}.invideo .big{min-height:64px}.invideo #msg{display:none}
